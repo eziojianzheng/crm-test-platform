@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const cron = require('node-cron');
 const fs = require('fs');
-const { runTests, getHistory, isRunning, currentRunId, emitter } = require('./test-runner');
+const { runTests, getHistory, isRunning, currentRunId, emitter, TESTCASES } = require('./test-runner');
 
 const app = express();
 const PORT = 3030;
@@ -12,23 +12,26 @@ const SCHEDULE_FILE = path.join(__dirname, 'schedule.json');
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── 获取 testcase 信息 ──
-app.get('/api/testcase', (req, res) => {
-  res.json({
-    id: 'crm-full-flow',
-    name: 'CRM 完整销售流程',
-    description: '语音线索 → 客户 → 商机 → 报价（审批）→ 赢单（审批）→ 合同生效',
-    steps: 10,
-    accounts: ['xuanyu.lu@bizops.com.cn (执行)', '593969718@qq.com (审批)']
-  });
+// ── 获取所有 testcase 列表 ──
+app.get('/api/testcases', (req, res) => {
+  res.json(Object.values(TESTCASES).map(tc => ({
+    id: tc.id,
+    name: tc.name,
+    description: tc.description,
+    steps: tc.steps
+  })));
 });
 
-// ── 立即运行 ──
+// ── 立即运行（可传 testcaseId）──
 app.post('/api/run', (req, res) => {
   if (isRunning()) {
     return res.status(409).json({ error: '测试正在运行中，请等待完成' });
   }
-  const result = runTests();
+  const { testcaseId } = req.body || {};
+  if (testcaseId && !TESTCASES[testcaseId]) {
+    return res.status(400).json({ error: `未知的 testcase: ${testcaseId}` });
+  }
+  const result = runTests(testcaseId);
   res.json(result);
 });
 
@@ -80,10 +83,13 @@ app.get('/api/stream/:runId', (req, res) => {
   req.on('close', cleanup);
 });
 
-// ── 获取运行历史 ──
+// ── 获取运行历史（可按 testcaseId 过滤）──
 app.get('/api/history', (req, res) => {
-  const history = getHistory();
-  // 列表不带完整 logs（节省传输）
+  const { testcaseId } = req.query;
+  let history = getHistory();
+  if (testcaseId) {
+    history = history.filter(r => r.testcaseId === testcaseId);
+  }
   res.json(history.map(r => ({ ...r, logs: undefined, logCount: r.logs?.length || 0 })));
 });
 
