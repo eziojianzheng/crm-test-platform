@@ -1,10 +1,11 @@
 const { defineConfig } = require('@playwright/test');
+const path = require('path');
 
 module.exports = defineConfig({
-  testDir: __dirname,
-  testMatch: ['**/crm-full-flow.spec.js'],
+  testDir: path.join(__dirname, 'tests'),
+  testMatch: ['**/*.spec.js'],
   testIgnore: ['**/node_modules/**'],
-  timeout: 180000,   // 赢单审批轮询最多需要约 100 秒
+  timeout: 180000,
   use: {
     headless: true,
   },
