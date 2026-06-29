@@ -3,7 +3,7 @@
  * 语音线索 → 客户 → 商机 → 报价（审批）→ 赢单（审批）→ 合同生效
  */
 
-const { test, expect } = require('@playwright/test');
+const { test, expect, request: playwrightRequest } = require('@playwright/test');
 const {
   createClient, disposeClient,
   Lead, Customer, Opportunity, Quotation, Contract, Approval
@@ -38,9 +38,9 @@ test.describe.serial('CRM 完整销售流程', () => {
   let contractId;
 
   // ── 初始化：双账号登录 ──────────────────────────────────────────────────────
-  test.beforeAll(async ({ request }) => {
-    repClient = await createClient(request, SALES_REP);
-    mgrClient = await createClient(request, SALES_MGR);
+  test.beforeAll(async () => {
+    repClient = await createClient(playwrightRequest, SALES_REP);
+    mgrClient = await createClient(playwrightRequest, SALES_MGR);
     console.log(`✅ 双账号登录成功，RunId: ${RUN_ID}`);
   });
 
@@ -191,10 +191,12 @@ test.describe.serial('CRM 完整销售流程', () => {
     let flowId = null;
     for (let i = 0; i < 20; i++) {
       await new Promise(r => setTimeout(r, 5000));
-      const detail = await (await Opportunity.get(repClient, opportunityId)).json();
+      const res = await Opportunity.get(repClient, opportunityId);
+      const detail = await res.json();
+      // 打印关键字段帮助调试
+      console.log(`  🔄 第${i + 1}次查询 - threadId: ${detail.threadId}, flowInstanceId: ${detail.flowInstanceId}, nodeId: ${detail.nodeId}, Status: ${detail.Status}`);
       flowId = detail.threadId || detail.flowInstanceId;
       if (flowId) { console.log(`✅ 发现 flowInstanceId: ${flowId}`); break; }
-      console.log(`  🔄 第${i + 1}次查询，flowInstanceId 还未生成`);
     }
 
     const approved = await Approval.waitAndApprove(

@@ -57,46 +57,67 @@ class CRMClient {
     };
   }
 
+  _url(path) {
+    return this._useAbsoluteUrl ? (this.baseURL + path) : path;
+  }
+
   async get(path, opts = {}) {
     const { extraHeaders = {}, ...rest } = opts;
-    return this._ctx.get(path, this._buildOpts(extraHeaders, rest));
+    return this._ctx.get(this._url(path), this._buildOpts(extraHeaders, rest));
   }
 
   async post(path, opts = {}) {
     const { extraHeaders = {}, ...rest } = opts;
-    return this._ctx.post(path, this._buildOpts(extraHeaders, rest));
+    return this._ctx.post(this._url(path), this._buildOpts(extraHeaders, rest));
   }
 
   async put(path, opts = {}) {
     const { extraHeaders = {}, ...rest } = opts;
-    return this._ctx.put(path, this._buildOpts(extraHeaders, rest));
+    return this._ctx.put(this._url(path), this._buildOpts(extraHeaders, rest));
   }
 
   async delete(path, opts = {}) {
     const { extraHeaders = {}, ...rest } = opts;
-    return this._ctx.delete(path, this._buildOpts(extraHeaders, rest));
+    return this._ctx.delete(this._url(path), this._buildOpts(extraHeaders, rest));
   }
 }
 
 /**
  * 创建一个已登录的 CRMClient 实例
- * @param {import('@playwright/test').APIRequestContext} request - Playwright request
+ * @param {import('@playwright/test').APIRequestContext} request - Playwright 的 request fixture
  * @param {{ email: string, password: string }} credentials
  * @returns {Promise<CRMClient>}
  */
 async function createClient(request, credentials) {
-  const ctx = await request.newContext({
-    baseURL: BASE_URL,
-    extraHTTPHeaders: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    }
-  });
+  // request fixture 本身就是 APIRequestContext，直接用
+  // 如果是 APIRequest 对象（有 newContext 方法），则创建新 context
+  let ctx;
+  let ownCtx = false;
+  if (typeof request.newContext === 'function') {
+    ctx = await request.newContext({
+      baseURL: BASE_URL,
+      extraHTTPHeaders: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    ownCtx = true;
+  } else {
+    ctx = request;
+  }
 
   const client = new CRMClient(ctx);
+  client._ownCtx = ownCtx;
+  // 如果是自己创建的 context（有 baseURL），用相对路径；否则用完整路径
+  client._useAbsoluteUrl = !ownCtx;
 
   if (credentials) {
-    const res = await ctx.post('/user-management/api/user/login', {
+    const loginUrl = ownCtx
+      ? '/user-management/api/user/login'
+      : `${BASE_URL}/user-management/api/user/login`;
+
+    const res = await ctx.post(loginUrl, {
+      headers: { 'Content-Type': 'application/json' },
       data: {
         email: credentials.email,
         username: credentials.email,
@@ -118,10 +139,10 @@ async function createClient(request, credentials) {
 }
 
 /**
- * 关闭 client（释放 HTTP 连接）
+ * 关闭 client（只释放自己创建的 context）
  */
 async function disposeClient(client) {
-  if (client && client._ctx) {
+  if (client && client._ctx && client._ownCtx) {
     await client._ctx.dispose();
   }
 }
