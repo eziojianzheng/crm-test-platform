@@ -25,14 +25,14 @@ const AIAgentAPI = {
 
   /**
    * 创建 Agent Session
-   * @param {{ agentId?: string, model?: string, skill?: string }} opts
+   * @param {{ agentId?: number|string, model?: object|string, skill?: object|null }} opts
    */
   async createSession(client, opts = {}) {
     return client.post('/flow/api/flow-rest/ceta-agent/session', {
       data: {
         agent_id: opts.agentId || '',
         model: opts.model || '',
-        skill: opts.skill || ''
+        skill: opts.skill ?? null
       }
     });
   },
@@ -40,16 +40,16 @@ const AIAgentAPI = {
   /**
    * 向 Agent Session 发送消息
    * @param {string} sessionId
-   * @param {{ question: string, model?: string, skill?: string }} opts
+   * @param {{ question: string, model?: object, systemPromptId?: number, skill?: null }} opts
    */
   async sendMessage(client, sessionId, opts = {}) {
     return client.post(`/ac/api/v1/project/agent/session/${sessionId}`, {
       data: {
         question: opts.question || '',
-        user_context: opts.userContext || '',
-        system_prompt_id: opts.systemPromptId || '',
-        model: opts.model || '',
-        skill: opts.skill || ''
+        user_context: opts.userContext ?? null,
+        system_prompt_id: opts.systemPromptId ?? null,
+        model: opts.model ?? null,
+        skill: opts.skill ?? null
       }
     });
   }
